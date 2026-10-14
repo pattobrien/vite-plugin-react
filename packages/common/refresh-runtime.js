@@ -635,7 +635,8 @@ export function validateRefreshBoundaryAndEnqueueUpdate(
   nextExports,
 ) {
   let hasExports = false
-  const ignoredExports = globalThis.__getReactRefreshIgnoredExports?.({ id }) ?? []
+  const ignoredExports =
+    globalThis.__getReactRefreshIgnoredExports?.({ id }) ?? []
 
   for (const key in prevExports) {
     if (ignoredExports.includes(key)) continue

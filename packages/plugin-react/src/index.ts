@@ -214,6 +214,18 @@ function viteReact(opts: Options = {}): Plugin[] {
           !code.includes(jsxImportDevRuntime)
         )
           return
+        if (opts.compiler) {
+          return {
+            code:
+              addRefreshWrapper(
+                code,
+                '@vitejs/plugin-react',
+                id,
+                opts.reactRefreshHost,
+              ) ?? code,
+            map: null,
+          }
+        }
         const result = await transformWithOxc(code, id, {
           jsx: {
             runtime: opts.jsxRuntime ?? 'automatic',
@@ -350,6 +362,7 @@ function viteReact(opts: Options = {}): Plugin[] {
         exclude,
         opts,
         () => !skipFastRefresh,
+        refreshEnvironments,
       ),
     )
   }
@@ -363,6 +376,7 @@ function createReactCompilerPlugin(
   exclude: NonNullable<Options['exclude']>,
   reactOptions: Pick<Options, 'jsxRuntime' | 'jsxImportSource'>,
   isFastRefreshEnabled: () => boolean,
+  refreshEnvironments: ReadonlySet<string>,
 ): Plugin {
   let jsxDevelopment = false
   let compiler: typeof import('oxc-transform-react') | undefined
@@ -415,7 +429,9 @@ function createReactCompilerPlugin(
         // Follow what the builtin oxc plugin does: https://github.com/vitejs/vite/blob/main/packages/vite/src/node/plugins/oxc.ts#L250-L267
         const [filepath] = id.split('?')
         const isJSX = filepath.endsWith('x')
-        const isClient = this.environment?.config.consumer !== 'server'
+        const isClient =
+          this.environment?.config.consumer !== 'server' ||
+          refreshEnvironments.has(this.environment.name)
         const refreshEnabled =
           isClient &&
           isFastRefreshEnabled() &&
