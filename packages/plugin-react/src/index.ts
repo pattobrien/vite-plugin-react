@@ -6,12 +6,14 @@ import {
   makeIdFiltersToMatchWithQuery,
 } from '@rolldown/pluginutils'
 import {
+  addRefreshWrapper,
   getPreambleCode,
   preambleCode,
   runtimePublicPath,
   silenceUseClientWarning,
   virtualPreamblePlugin,
 } from '@vitejs/react-common'
+import { transformWithOxc } from 'vite'
 import type { Plugin, ServerOptions } from 'vite'
 import { reactRefreshWrapperPlugin } from 'vite/internal'
 import type { ReactCompilerOptions } from '#optionalTypes'
@@ -70,6 +72,13 @@ export interface Options {
    * @experimental
    */
   compiler?: boolean | ReactCompilerPluginOptions
+  /**
+   * Names of non-client environments that also get React Fast Refresh, such as
+   * a module runner environment rendering React to a terminal. The runner must
+   * import `@vitejs/plugin-react/preamble` before it loads React.
+   * @default []
+   */
+  refreshEnvironments?: string[]
 }
 
 const defaultIncludeRE = /\.[tj]sx?$/
@@ -178,6 +187,56 @@ function viteReact(opts: Options = {}): Plugin[] {
     },
   }
 
+  const refreshEnvironments = new Set(opts.refreshEnvironments)
+  const viteEnvironmentRefresh: Plugin = {
+    name: 'vite:react:environment-refresh',
+    enforce: 'pre',
+    apply: 'serve',
+    applyToEnvironment(env) {
+      return (
+        !skipFastRefresh &&
+        env.config.consumer !== 'client' &&
+        refreshEnvironments.has(env.name)
+      )
+    },
+    transform: {
+      filter: {
+        id: {
+          include: makeIdFiltersToMatchWithQuery(include),
+          exclude: makeIdFiltersToMatchWithQuery(exclude),
+        },
+      },
+      async handler(code, id) {
+        const [filepath] = id.split('?')
+        if (
+          !filepath.endsWith('x') &&
+          !code.includes(jsxImportRuntime) &&
+          !code.includes(jsxImportDevRuntime)
+        )
+          return
+        const result = await transformWithOxc(code, id, {
+          jsx: {
+            runtime: opts.jsxRuntime ?? 'automatic',
+            importSource: opts.jsxImportSource,
+            development: true,
+            refresh: true,
+          },
+          sourcemap: true,
+        })
+        return {
+          code:
+            addRefreshWrapper(
+              result.code,
+              '@vitejs/plugin-react',
+              id,
+              opts.reactRefreshHost,
+            ) ?? result.code,
+          map: result.map,
+        }
+      },
+    },
+  }
+
   const viteConfigPost: Plugin = {
     name: 'vite:react:config-post',
     enforce: 'post',
@@ -273,6 +332,7 @@ function viteReact(opts: Options = {}): Plugin[] {
   const plugins = [
     viteBabel,
     viteRefreshWrapper,
+    ...(refreshEnvironments.size ? [viteEnvironmentRefresh] : []),
     viteConfigPost,
     viteReactRefreshBundledDevMode,
     viteReactRefresh,

@@ -10,9 +10,9 @@ const refreshContentRE = /\$RefreshReg\$\(/
 export const preambleCode: string = `import { injectIntoGlobalHook } from "__BASE__${runtimePublicPath.slice(
   1,
 )}";
-injectIntoGlobalHook(window);
-window.$RefreshReg$ = () => {};
-window.$RefreshSig$ = () => (type) => type;`
+injectIntoGlobalHook(globalThis);
+globalThis.$RefreshReg$ = () => {};
+globalThis.$RefreshSig$ = () => (type) => type;`
 
 export const getPreambleCode = (base: string): string =>
   preambleCode.replace('__BASE__', base)
@@ -35,7 +35,7 @@ import * as RefreshRuntime from "${reactRefreshHost}${runtimePublicPath}";
 const inWebWorker = typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope;
 import * as __vite_react_currentExports from ${JSON.stringify(id)};
 if (import.meta.hot && !inWebWorker) {
-  if (!window.$RefreshReg$) {
+  if (!globalThis.$RefreshReg$) {
     throw new Error(
       "${pluginName} can't detect preamble. Something is wrong."
     );

@@ -1,4 +1,3 @@
-/* global window */
 /* oxlint-disable eqeqeq, prefer-const, no-empty-function, no-unused-vars, typescript/no-implied-eval */
 
 /*! Copyright (c) Meta Platforms, Inc. and affiliates. **/
@@ -622,7 +621,7 @@ function debounce(fn, delay) {
 }
 
 const hooks = []
-window.__registerBeforePerformReactRefresh = (cb) => {
+globalThis.__registerBeforePerformReactRefresh = (cb) => {
   hooks.push(cb)
 }
 const enqueueUpdate = debounce(async () => {
@@ -636,7 +635,7 @@ export function validateRefreshBoundaryAndEnqueueUpdate(
   nextExports,
 ) {
   let hasExports = false
-  const ignoredExports = window.__getReactRefreshIgnoredExports?.({ id }) ?? []
+  const ignoredExports = globalThis.__getReactRefreshIgnoredExports?.({ id }) ?? []
 
   for (const key in prevExports) {
     if (ignoredExports.includes(key)) continue
