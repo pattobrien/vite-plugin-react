@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   exactRegex,
@@ -307,7 +307,11 @@ function viteReact(opts: Options = {}): Plugin[] {
     config: (userConfig) => ({
       build: silenceUseClientWarning(userConfig),
       optimizeDeps: {
-        include: dependencies,
+        include: dependencies.filter(
+          (dep) =>
+            dep !== 'react-dom' ||
+            hasPackage(dep, resolve(userConfig.root ?? '')),
+        ),
       },
     }),
     resolveId: {
@@ -482,6 +486,14 @@ function createReactCompilerPlugin(
         return { code: result.code, map: result.map }
       },
     },
+  }
+}
+
+// Mirrors Vite's node_modules lookup; require.resolve would also search NODE_PATH.
+function hasPackage(name: string, root: string) {
+  for (let dir = root; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, 'node_modules', name, 'package.json'))) return true
+    if (dirname(dir) === dir) return false
   }
 }
 
