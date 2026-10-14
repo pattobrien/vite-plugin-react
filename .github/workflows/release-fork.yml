@@ -1,0 +1,62 @@
+name: Release (fork)
+
+on:
+  push:
+    tags:
+      - 'plugin-react@*-fork.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The fork version to publish, e.g. 6.1.2-fork.2; must equal the plugin-react package.json version plus -fork.N
+        required: true
+        type: string
+
+concurrency:
+  group: release-fork-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build and publish to GitHub Packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set node version
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Disallow installation scripts
+        run: yq '.onlyBuiltDependencies = []' -i pnpm-workspace.yaml
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+
+      - name: Build plugin-react
+        run: pnpm --filter @vitejs/plugin-react build
+
+      - name: Authenticate to GitHub Packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm config set //npm.pkg.github.com/:_authToken "$NODE_AUTH_TOKEN"
+
+      - name: Publish to GitHub Packages
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          VERSION="${INPUT_VERSION:-${GITHUB_REF_NAME#plugin-react@}}"
+          node scripts/fork-publish.ts "$VERSION"
